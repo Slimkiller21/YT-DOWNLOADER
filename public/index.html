@@ -161,11 +161,14 @@ body::after {
 
 <script>
 let quality = '1080';
+let lastData = null; // cache last API response so quality buttons can re-render without a new request
 
 function setQuality(el, q) {
   document.querySelectorAll('.q-btn').forEach(b => b.classList.remove('active'));
   el.classList.add('active');
   quality = q;
+  // BUG FIX 2: re-render formats if we already have data loaded
+  if (lastData) renderFormats(lastData);
 }
 
 function setLoading(on) {
@@ -190,10 +193,12 @@ async function startDownload() {
   if (!url) { showError('Cole um link do YouTube primeiro.'); return; }
 
   setLoading(true);
+  lastData = null;
   try {
     const res = await fetch('/api/info?url=' + encodeURIComponent(url));
     const data = await res.json();
     if (!res.ok) { showError(data.error || 'Erro ao processar vídeo.'); return; }
+    lastData = data;
     renderResult(data);
   } catch(e) {
     showError('Erro de conexão. Verifique sua internet.');
@@ -209,14 +214,25 @@ function renderResult(data) {
     ? `${Math.floor(data.lengthSeconds/60)}:${String(data.lengthSeconds%60).padStart(2,'0')}`
     : '';
   document.getElementById('resultMeta').textContent = [data.author, dur].filter(Boolean).join(' · ');
+  renderFormats(data);
+  document.getElementById('resultCard').classList.add('visible');
+}
 
+function renderFormats(data) {
   const list = document.getElementById('formatsList');
   list.innerHTML = '';
-  const all = [...(data.formats||[]), ...(data.adaptiveFormats||[])];
+
+  // BUG FIX 1: separate muxed (video+audio) from adaptive (video-only or audio-only)
+  const muxed = (data.formats || []).filter(f => f.url && f.mimeType);
+  const adaptive = (data.adaptiveFormats || []).filter(f => f.url && f.mimeType);
+  const audioOnly = adaptive.filter(f => f.mimeType.includes('audio'));
+  const videoOnly = adaptive.filter(f => f.mimeType.includes('video'));
+
   const formats = [];
 
   if (quality === 'audio') {
-    const audios = all.filter(f => f.mimeType?.includes('audio') && f.url);
+    // Use adaptive audio-only streams for MP3/M4A
+    const audios = [...audioOnly];
     audios.sort((a,b) => (b.bitrate||0)-(a.bitrate||0));
     audios.slice(0,3).forEach((f,i) => {
       const q = f.audioQuality?.replace('AUDIO_QUALITY_','') || (i===0?'Alta':'Média');
@@ -224,14 +240,33 @@ function renderResult(data) {
     });
   } else {
     const targets = { '1080':['1080'], '720':['720'], '480':['480'], '360':['360','medium'] }[quality] || [];
-    let vids = all.filter(f => f.mimeType?.includes('video') && f.url && targets.some(q => (f.qualityLabel||f.quality||'').includes(q)));
-    if (!vids.length) vids = all.filter(f => f.mimeType?.includes('video') && f.url);
+
+    // Priority 1: muxed formats (have both video AND audio in one stream)
+    let vids = muxed.filter(f =>
+      f.mimeType.includes('video') && targets.some(q => (f.qualityLabel||f.quality||'').includes(q))
+    );
+
+    // Priority 2: if no muxed match, fall back to muxed at any quality
+    if (!vids.length) vids = muxed.filter(f => f.mimeType.includes('video'));
+
+    // Priority 3: last resort — adaptive video-only (warn user in desc)
+    if (!vids.length) {
+      vids = videoOnly.filter(f => targets.some(q => (f.qualityLabel||f.quality||'').includes(q)));
+      if (!vids.length) vids = videoOnly;
+      vids = vids.map(f => ({ ...f, _videoOnly: true }));
+    }
+
     vids.slice(0,4).forEach(f => {
       const ext = f.mimeType?.includes('webm') ? 'WEBM' : 'MP4';
-      formats.push({ url:f.url, badge:ext, name:f.qualityLabel||f.quality||'Vídeo', desc:f.mimeType?.split(';')[0]||'' });
+      const desc = f._videoOnly
+        ? '⚠️ Sem áudio — stream separado'
+        : f.mimeType?.split(';')[0]||'';
+      formats.push({ url:f.url, badge:ext, name:f.qualityLabel||f.quality||'Vídeo', desc });
     });
-    const audio = all.find(f => f.mimeType?.includes('audio') && f.url);
-    if (audio) formats.push({ url:audio.url, badge:'M4A', name:'Somente áudio', desc:'Sem vídeo', audio:true });
+
+    // Always offer a standalone audio option at the bottom
+    const bestAudio = audioOnly.sort((a,b)=>(b.bitrate||0)-(a.bitrate||0))[0];
+    if (bestAudio) formats.push({ url:bestAudio.url, badge:'M4A', name:'Somente áudio', desc:'Sem vídeo', audio:true });
   }
 
   if (!formats.length) { showError('Nenhum formato disponível. Tente outra qualidade.'); return; }
@@ -251,8 +286,6 @@ function renderResult(data) {
       <div class="dl-arrow">↓</div>`;
     list.appendChild(a);
   });
-
-  document.getElementById('resultCard').classList.add('visible');
 }
 
 document.getElementById('urlInput').addEventListener('keydown', e => { if(e.key==='Enter') startDownload(); });
