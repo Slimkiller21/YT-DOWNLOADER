@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Baixar Vídeo do YouTube</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --red: #E8251A; --red-dark: #B01C13;
+  --black: #080808; --surface: #141414; --surface2: #1E1E1E;
+  --border: #2A2A2A; --white: #F0EDE8; --muted: #666; --green: #1DB954;
+}
+html, body { height: 100%; background: var(--black); color: var(--white); font-family: 'DM Sans', sans-serif; overflow-x: hidden; }
+body::after {
+  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  opacity: 0.5;
+}
+.topbar { position: fixed; top: 0; left: 0; right: 0; height: 3px; background: var(--red); z-index: 100; }
+.page {
+  position: relative; z-index: 1; min-height: 100vh;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 60px 20px;
+}
+.logo {
+  font-family: 'Bebas Neue', sans-serif; font-size: clamp(58px, 11vw, 108px);
+  line-height: 0.88; text-align: center; margin-bottom: 10px;
+  animation: fadeUp 0.5s ease both;
+}
+.logo span { color: var(--red); }
+.tagline {
+  font-size: 12px; font-weight: 300; color: var(--muted);
+  letter-spacing: 0.2em; text-transform: uppercase;
+  text-align: center; margin-bottom: 52px;
+  animation: fadeUp 0.5s 0.08s ease both;
+}
+.input-wrap { width: 100%; max-width: 620px; animation: fadeUp 0.5s 0.16s ease both; }
+.input-row {
+  display: flex; border: 1.5px solid var(--border);
+  border-radius: 4px; overflow: hidden; transition: border-color 0.2s;
+}
+.input-row:focus-within { border-color: var(--red); }
+.url-input {
+  flex: 1; background: var(--surface); color: var(--white);
+  border: none; outline: none; padding: 17px 20px;
+  font-family: 'DM Sans', sans-serif; font-size: 15px;
+}
+.url-input::placeholder { color: #444; }
+.btn-go {
+  background: var(--red); color: #fff; border: none; padding: 17px 26px;
+  font-family: 'Bebas Neue', sans-serif; font-size: 18px; letter-spacing: 0.08em;
+  cursor: pointer; transition: background 0.15s; white-space: nowrap;
+}
+.btn-go:hover { background: var(--red-dark); }
+.btn-go:disabled { background: #333; cursor: not-allowed; }
+.quality-row { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+.q-btn {
+  background: none; border: 1px solid var(--border); color: var(--muted);
+  font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 500;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 6px 13px; border-radius: 2px; cursor: pointer; transition: all 0.15s;
+}
+.q-btn:hover { border-color: var(--white); color: var(--white); }
+.q-btn.active { background: var(--white); border-color: var(--white); color: var(--black); }
+.status-area { width: 100%; max-width: 620px; margin-top: 24px; min-height: 50px; }
+.loading-bar { height: 2px; background: var(--surface2); border-radius: 1px; overflow: hidden; display: none; }
+.loading-bar.visible { display: block; }
+.loading-fill { height: 100%; width: 0%; background: var(--red); animation: loadBar 1.8s ease-in-out infinite; }
+.error-box {
+  background: #180a0a; border: 1px solid #3a1010;
+  border-radius: 4px; padding: 14px 18px; font-size: 13px; color: #ff6b6b; display: none;
+}
+.error-box.visible { display: block; }
+.result-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 6px; overflow: hidden; display: none;
+}
+.result-card.visible { display: block; animation: fadeUp 0.3s ease both; }
+.result-header { display: flex; gap: 16px; padding: 18px 20px; border-bottom: 1px solid var(--border); align-items: center; }
+.thumb { width: 88px; height: 56px; object-fit: cover; border-radius: 3px; flex-shrink: 0; background: var(--surface2); }
+.result-info { flex: 1; min-width: 0; }
+.result-title-text { font-size: 14px; font-weight: 500; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.result-meta-text { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.formats-list { padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+.dl-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px; background: var(--surface2);
+  border: 1px solid transparent; border-radius: 3px;
+  cursor: pointer; transition: all 0.15s; text-decoration: none; color: var(--white);
+}
+.dl-item:hover { border-color: var(--red); background: #1a0808; }
+.dl-left { display: flex; align-items: center; gap: 12px; }
+.dl-badge {
+  background: var(--red); color: #fff;
+  font-family: 'Bebas Neue', sans-serif; font-size: 13px;
+  padding: 2px 8px; border-radius: 2px; min-width: 52px; text-align: center;
+}
+.dl-badge.audio { background: #0d2a14; color: var(--green); border: 1px solid #1a4a20; }
+.dl-name { font-size: 13px; font-weight: 400; }
+.dl-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.dl-arrow { font-size: 16px; color: var(--muted); transition: color 0.15s; }
+.dl-item:hover .dl-arrow { color: var(--red); }
+.footer { margin-top: 56px; text-align: center; animation: fadeUp 0.5s 0.3s ease both; }
+.footer p { font-size: 11px; color: #2e2e2e; letter-spacing: 0.08em; text-transform: uppercase; }
+.footer p + p { margin-top: 6px; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes loadBar { 0%{width:0%;margin-left:0} 50%{width:60%;margin-left:20%} 100%{width:0%;margin-left:100%} }
+@media (max-width: 480px) {
+  .input-row { flex-direction: column; }
+  .btn-go { text-align: center; }
+  .result-header { flex-direction: column; }
+  .thumb { width: 100%; height: 130px; }
+}
+</style>
+</head>
+<body>
+<div class="topbar"></div>
+<div class="page">
+  <h1 class="logo">BAIXAR<br><span>VÍDEO</span></h1>
+  <p class="tagline">Cole o link — baixe na hora</p>
+
+  <div class="input-wrap">
+    <div class="input-row">
+      <input class="url-input" id="urlInput" type="url"
+        placeholder="https://youtube.com/watch?v=..."
+        autocomplete="off" spellcheck="false" />
+      <button class="btn-go" id="btnGo" onclick="startDownload()">BAIXAR</button>
+    </div>
+    <div class="quality-row">
+      <button class="q-btn active" onclick="setQuality(this,'1080')">1080p</button>
+      <button class="q-btn" onclick="setQuality(this,'720')">720p</button>
+      <button class="q-btn" onclick="setQuality(this,'480')">480p</button>
+      <button class="q-btn" onclick="setQuality(this,'360')">360p</button>
+      <button class="q-btn" onclick="setQuality(this,'audio')">🎵 MP3</button>
+    </div>
+  </div>
+
+  <div class="status-area">
+    <div class="loading-bar" id="loadingBar"><div class="loading-fill"></div></div>
+    <div class="error-box" id="errorBox"></div>
+    <div class="result-card" id="resultCard">
+      <div class="result-header">
+        <img class="thumb" id="resultThumb" src="" alt="" />
+        <div class="result-info">
+          <div class="result-title-text" id="resultTitle"></div>
+          <div class="result-meta-text" id="resultMeta"></div>
+        </div>
+      </div>
+      <div class="formats-list" id="formatsList"></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p>Gratuito &mdash; Sem cadastro &mdash; Sem anúncios</p>
+    <p>Use apenas para conteúdo com permissão de download</p>
+  </div>
+</div>
+
+<script>
+let quality = '1080';
+
+function setQuality(el, q) {
+  document.querySelectorAll('.q-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  quality = q;
+}
+
+function setLoading(on) {
+  document.getElementById('loadingBar').classList.toggle('visible', on);
+  document.getElementById('btnGo').disabled = on;
+  document.getElementById('btnGo').textContent = on ? '...' : 'BAIXAR';
+  if (on) {
+    document.getElementById('errorBox').classList.remove('visible');
+    document.getElementById('resultCard').classList.remove('visible');
+  }
+}
+
+function showError(msg) {
+  setLoading(false);
+  const b = document.getElementById('errorBox');
+  b.textContent = msg;
+  b.classList.add('visible');
+}
+
+async function startDownload() {
+  const url = document.getElementById('urlInput').value.trim();
+  if (!url) { showError('Cole um link do YouTube primeiro.'); return; }
+
+  setLoading(true);
+  try {
+    const res = await fetch('/api/info?url=' + encodeURIComponent(url));
+    const data = await res.json();
+    if (!res.ok) { showError(data.error || 'Erro ao processar vídeo.'); return; }
+    renderResult(data);
+  } catch(e) {
+    showError('Erro de conexão. Verifique sua internet.');
+  } finally {
+    setLoading(false);
+  }
+}
+
+function renderResult(data) {
+  document.getElementById('resultThumb').src = `https://img.youtube.com/vi/${data.videoId}/mqdefault.jpg`;
+  document.getElementById('resultTitle').textContent = data.title || 'Vídeo do YouTube';
+  const dur = data.lengthSeconds
+    ? `${Math.floor(data.lengthSeconds/60)}:${String(data.lengthSeconds%60).padStart(2,'0')}`
+    : '';
+  document.getElementById('resultMeta').textContent = [data.author, dur].filter(Boolean).join(' · ');
+
+  const list = document.getElementById('formatsList');
+  list.innerHTML = '';
+  const all = [...(data.formats||[]), ...(data.adaptiveFormats||[])];
+  const formats = [];
+
+  if (quality === 'audio') {
+    const audios = all.filter(f => f.mimeType?.includes('audio') && f.url);
+    audios.sort((a,b) => (b.bitrate||0)-(a.bitrate||0));
+    audios.slice(0,3).forEach((f,i) => {
+      const q = f.audioQuality?.replace('AUDIO_QUALITY_','') || (i===0?'Alta':'Média');
+      formats.push({ url:f.url, badge:'M4A', name:'Áudio — '+q, desc:f.mimeType?.split(';')[0]||'', audio:true });
+    });
+  } else {
+    const targets = { '1080':['1080'], '720':['720'], '480':['480'], '360':['360','medium'] }[quality] || [];
+    let vids = all.filter(f => f.mimeType?.includes('video') && f.url && targets.some(q => (f.qualityLabel||f.quality||'').includes(q)));
+    if (!vids.length) vids = all.filter(f => f.mimeType?.includes('video') && f.url);
+    vids.slice(0,4).forEach(f => {
+      const ext = f.mimeType?.includes('webm') ? 'WEBM' : 'MP4';
+      formats.push({ url:f.url, badge:ext, name:f.qualityLabel||f.quality||'Vídeo', desc:f.mimeType?.split(';')[0]||'' });
+    });
+    const audio = all.find(f => f.mimeType?.includes('audio') && f.url);
+    if (audio) formats.push({ url:audio.url, badge:'M4A', name:'Somente áudio', desc:'Sem vídeo', audio:true });
+  }
+
+  if (!formats.length) { showError('Nenhum formato disponível. Tente outra qualidade.'); return; }
+
+  formats.forEach(f => {
+    const a = document.createElement('a');
+    a.className = 'dl-item';
+    a.href = f.url;
+    a.download = '';
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.innerHTML = `
+      <div class="dl-left">
+        <div class="dl-badge${f.audio?' audio':''}">${f.badge}</div>
+        <div><div class="dl-name">${f.name}</div><div class="dl-desc">${f.desc}</div></div>
+      </div>
+      <div class="dl-arrow">↓</div>`;
+    list.appendChild(a);
+  });
+
+  document.getElementById('resultCard').classList.add('visible');
+}
+
+document.getElementById('urlInput').addEventListener('keydown', e => { if(e.key==='Enter') startDownload(); });
+document.getElementById('urlInput').addEventListener('paste', () => {
+  setTimeout(() => {
+    const v = document.getElementById('urlInput').value;
+    if (v.includes('youtube.com') || v.includes('youtu.be')) startDownload();
+  }, 150);
+});
+</script>
+</body>
+</html>
