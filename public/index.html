@@ -228,10 +228,10 @@ function renderFormats(data) {
   const videoOnly = adaptive.filter(f => f.mimeType.includes('video'));
 
   const formats = [];
+  const bestAudio = [...audioOnly].sort((a,b)=>(b.bitrate||0)-(a.bitrate||0))[0];
 
   if (quality === 'audio') {
-    const audios = [...audioOnly];
-    audios.sort((a,b) => (b.bitrate||0)-(a.bitrate||0));
+    const audios = [...audioOnly].sort((a,b) => (b.bitrate||0)-(a.bitrate||0));
     audios.slice(0,3).forEach((f,i) => {
       const q = f.audioQuality?.replace('AUDIO_QUALITY_','') || (i===0?'Alta':'Média');
       formats.push({ url: f.url, badge:'M4A', name:'Áudio — '+q, desc: f.mimeType?.split(';')[0]||'', audio:true, direct:true });
@@ -239,59 +239,59 @@ function renderFormats(data) {
   } else {
     const targets = { '1080':['1080'], '720':['720'], '480':['480'], '360':['360','medium'] }[quality] || [];
 
-    // Best audio stream for merging
-    const bestAudio = [...audioOnly].sort((a,b)=>(b.bitrate||0)-(a.bitrate||0))[0];
-
-    // Priority 1: muxed (already have audio, no merge needed)
-    let vids = muxed.filter(f =>
+    // 1. Procurar formatos DIRETOS (vídeo + áudio) na qualidade escolhida
+    const directMatches = muxed.filter(f =>
       f.mimeType.includes('video') && targets.some(q => (f.qualityLabel||f.quality||'').includes(q))
     );
-    if (!vids.length) vids = muxed.filter(f => f.mimeType.includes('video'));
 
-    if (vids.length) {
-      // Muxed streams — direct download, audio already included
-      vids.slice(0,2).forEach(f => {
-        const ext = f.mimeType?.includes('webm') ? 'WEBM' : 'MP4';
-        formats.push({ url: f.url, badge: ext, name: f.qualityLabel||f.quality||'Vídeo', desc: 'Vídeo + áudio', direct: true });
-      });
-    } else if (bestAudio) {
-      // Adaptive video-only — merge via server with best audio
-      let adaptVids = videoOnly.filter(f => targets.some(q => (f.qualityLabel||f.quality||'').includes(q)));
-      if (!adaptVids.length) adaptVids = videoOnly;
+    // 2. Procurar formatos ADAPTIVE (precisam de merge) na qualidade escolhida
+    const adaptiveMatches = videoOnly.filter(f => 
+      targets.some(q => (f.qualityLabel||f.quality||'').includes(q))
+    );
 
-      adaptVids.slice(0,3).forEach(f => {
+    // Adicionar matches diretos primeiro (são mais rápidos)
+    directMatches.forEach(f => {
+      const ext = f.mimeType?.includes('webm') ? 'WEBM' : 'MP4';
+      formats.push({ url: f.url, badge: ext, name: f.qualityLabel||f.quality||'Vídeo', desc: 'Download Direto (Rápido)', direct: true });
+    });
+
+    // Adicionar matches de alta qualidade para merge
+    if (bestAudio) {
+      adaptiveMatches.forEach(f => {
         const label = f.qualityLabel || f.quality || 'Vídeo';
         const mergeUrl = '/api/merge?videoUrl=' + encodeURIComponent(f.url) +
                          '&audioUrl=' + encodeURIComponent(bestAudio.url) +
                          '&filename=' + encodeURIComponent(data.title || 'video');
-        formats.push({ url: mergeUrl, badge: 'MP4', name: label, desc: 'Vídeo + áudio — processando no servidor', direct: false });
+        formats.push({ url: mergeUrl, badge: 'MP4', name: label, desc: 'Alta Qualidade — Unindo vídeo e áudio...', direct: false });
       });
     }
 
-    // Always offer standalone audio at the bottom
+    // 3. Se não houver NADA na qualidade pedida, aí sim mostramos o 360p como fallback
+    if (formats.length === 0) {
+      muxed.filter(f => f.mimeType.includes('video')).slice(0,1).forEach(f => {
+        formats.push({ url: f.url, badge: 'MP4', name: (f.qualityLabel || '360p'), desc: 'Qualidade padrão disponível', direct: true });
+      });
+    }
+
     if (bestAudio) {
-      formats.push({ url: bestAudio.url, badge:'M4A', name:'Somente áudio', desc:'Sem vídeo', audio:true, direct:true });
+      formats.push({ url: bestAudio.url, badge:'M4A', name:'Apenas Áudio', desc:'Sem vídeo', audio:true, direct:true });
     }
   }
 
   if (!formats.length) { showError('Nenhum formato disponível. Tente outra qualidade.'); return; }
 
+  // ... (o resto do código de renderização mantém-se igual)
   formats.forEach(f => {
     const el = document.createElement('a');
     el.className = 'dl-item';
     el.href = f.url;
     el.rel = 'noopener noreferrer';
-
     if (f.direct) {
-      // Direct stream — open in new tab, browser handles download
       el.target = '_blank';
       el.download = '';
     } else {
-      // Merge endpoint — same tab, server streams the file back
       el.target = '_self';
-      el.download = (data.title || 'video').replace(/[^a-zA-Z0-9_\- ]/g, '') + '.mp4';
     }
-
     el.innerHTML = `
       <div class="dl-left">
         <div class="dl-badge${f.audio?' audio':''}">${f.badge}</div>
