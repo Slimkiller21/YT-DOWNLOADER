@@ -2,11 +2,13 @@ const express = require('express');
 const helmet = require('helmet');
 const cors = require('cors');
 const { rateLimit } = require('express-rate-limit');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
 const RAPIDAPI_HOST = 'ytstream-download-youtube-videos.p.rapidapi.com';
+
 
 if (!RAPIDAPI_KEY) {
   console.error('ERRO: variável de ambiente RAPIDAPI_KEY não definida.');
@@ -33,6 +35,9 @@ app.use(cors({
   methods: ['GET'],
   allowedHeaders: ['Content-Type']
 }));
+
+// This tells Express to serve your index.html and other files from the public folder
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Rate limiting — max 30 requests per IP per 10 minutes
 const limiter = rateLimit({
