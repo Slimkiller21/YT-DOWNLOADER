@@ -15,9 +15,6 @@ const RAPIDAPI_HOST = 'ytstream-download-youtube-videos.p.rapidapi.com';
 app.get('/test-ffmpeg', (req, res) => {
   const { exec } = require('child_process');
 
-app.get('/test-ffmpeg', (req, res) => {
-  const { exec } = require('child_process');
-
   exec('ls /nix/store | grep ffmpeg', (err, stdout, stderr) => {
     if (err) {
       return res.status(500).send({
