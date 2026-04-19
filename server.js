@@ -107,41 +107,32 @@ app.get('/api/info', async (req, res) => {
       return res.status(500).json({ error: 'Erro ao buscar vídeo.' });
     }
 
-    const data = await response.json();
+   // Dentro de app.get('/api/info', ...)
+const data = await response.json();
 
-    if (!data || data.status === 'fail') {
-      return res.status(404).json({ error: 'Vídeo não encontrado ou indisponível.' });
-    }
+// Criamos uma lista única com todos os formatos úteis
+const allFormats = [
+  ...(data.formats || []),
+  ...(data.adaptiveFormats || [])
+].filter(f => f.url || f.signatureCipher || f.cipher);
 
-    // Strip sensitive fields, return only what frontend needs
-    const safe = {
-      title: data.title || '',
-      author: data.author || '',
-      lengthSeconds: data.lengthSeconds || 0,
-      videoId,
-      formats: (data.formats || [])
-        .filter(f => f.url && f.mimeType)
-        .map(f => ({
-          url: f.url,
-          mimeType: f.mimeType,
-          quality: f.quality || '',
-          qualityLabel: f.qualityLabel || '',
-          bitrate: f.bitrate || 0,
-          audioQuality: f.audioQuality || ''
-        })),
-      adaptiveFormats: (data.adaptiveFormats || [])
-        .filter(f => f.url && f.mimeType)
-        .map(f => ({
-          url: f.url,
-          mimeType: f.mimeType,
-          quality: f.quality || '',
-          qualityLabel: f.qualityLabel || '',
-          bitrate: f.bitrate || 0,
-          audioQuality: f.audioQuality || ''
-        }))
-    };
+const safe = {
+  title: data.title || '',
+  author: data.author || '',
+  lengthSeconds: data.lengthSeconds || 0,
+  videoId,
+  // Enviamos tudo numa lista só para o frontend não se confundir
+  formats: allFormats.map(f => ({
+    url: f.url,
+    mimeType: f.mimeType,
+    quality: f.quality || '',
+    qualityLabel: f.qualityLabel || f.quality || '',
+    hasAudio: !!(f.audioQuality || f.mimeType.includes('audio')),
+    isAdaptive: !f.audioQuality && f.mimeType.includes('video')
+  }))
+};
 
-    res.json(safe);
+res.json(safe);
 
   } catch (err) {
     console.error('Fetch error:', err.message);
