@@ -15,15 +15,21 @@ const RAPIDAPI_HOST = 'ytstream-download-youtube-videos.p.rapidapi.com';
 app.get('/test-ffmpeg', (req, res) => {
   const { exec } = require('child_process');
 
-  exec('export PATH=$PATH:/usr/bin:/bin:/nix/store && which ffmpeg && ffmpeg -version', 
-  (err, stdout, stderr) => {
+app.get('/test-ffmpeg', (req, res) => {
+  const { exec } = require('child_process');
+
+  exec('ls /nix/store | grep ffmpeg', (err, stdout, stderr) => {
     if (err) {
       return res.status(500).send({
-        error: 'FFmpeg not working',
+        error: 'Cannot find ffmpeg in nix store',
         details: stderr || err.message
       });
     }
-    res.send(stdout);
+
+    res.send({
+      message: 'Search result in /nix/store',
+      result: stdout
+    });
   });
 });
 
