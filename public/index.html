@@ -228,6 +228,7 @@ function renderFormats(data) {
   const videoOnly = adaptive.filter(f => f.mimeType.includes('video'));
 
   const formats = [];
+  // Melhor áudio disponível para fazer o merge
   const bestAudio = [...audioOnly].sort((a,b)=>(b.bitrate||0)-(a.bitrate||0))[0];
 
   if (quality === 'audio') {
@@ -239,59 +240,56 @@ function renderFormats(data) {
   } else {
     const targets = { '1080':['1080'], '720':['720'], '480':['480'], '360':['360','medium'] }[quality] || [];
 
-    // 1. Procurar formatos DIRETOS (vídeo + áudio) na qualidade escolhida
-    const directMatches = muxed.filter(f =>
+    // 1. Tentar achar o vídeo JÁ COM ÁUDIO na qualidade certa (Rápido)
+    let vidsMuxed = muxed.filter(f => 
       f.mimeType.includes('video') && targets.some(q => (f.qualityLabel||f.quality||'').includes(q))
     );
 
-    // 2. Procurar formatos ADAPTIVE (precisam de merge) na qualidade escolhida
-    const adaptiveMatches = videoOnly.filter(f => 
+    // 2. Tentar achar o vídeo SEM ÁUDIO na qualidade certa (Para fazer Merge)
+    let vidsAdaptive = videoOnly.filter(f => 
       targets.some(q => (f.qualityLabel||f.quality||'').includes(q))
     );
 
-    // Adicionar matches diretos primeiro (são mais rápidos)
-    directMatches.forEach(f => {
-      const ext = f.mimeType?.includes('webm') ? 'WEBM' : 'MP4';
-      formats.push({ url: f.url, badge: ext, name: f.qualityLabel||f.quality||'Vídeo', desc: 'Download Direto (Rápido)', direct: true });
-    });
-
-    // Adicionar matches de alta qualidade para merge
-    if (bestAudio) {
-      adaptiveMatches.forEach(f => {
-        const label = f.qualityLabel || f.quality || 'Vídeo';
+    if (vidsMuxed.length > 0) {
+      vidsMuxed.forEach(f => {
+        formats.push({ url: f.url, badge: 'MP4', name: f.qualityLabel||f.quality, desc: 'Download Direto', direct: true });
+      });
+    } 
+    
+    // Se não houver direto, mas houver em Alta Qualidade para merge
+    if (vidsAdaptive.length > 0 && bestAudio) {
+      vidsAdaptive.forEach(f => {
         const mergeUrl = '/api/merge?videoUrl=' + encodeURIComponent(f.url) +
                          '&audioUrl=' + encodeURIComponent(bestAudio.url) +
                          '&filename=' + encodeURIComponent(data.title || 'video');
-        formats.push({ url: mergeUrl, badge: 'MP4', name: label, desc: 'Alta Qualidade — Unindo vídeo e áudio...', direct: false });
+        formats.push({ url: mergeUrl, badge: 'HD', name: f.qualityLabel||f.quality, desc: 'Processando Áudio + Vídeo...', direct: false });
       });
     }
 
-    // 3. Se não houver NADA na qualidade pedida, aí sim mostramos o 360p como fallback
+    // 3. Fallback: Se não encontrou NADA da qualidade escolhida, mostra o que houver com áudio
     if (formats.length === 0) {
       muxed.filter(f => f.mimeType.includes('video')).slice(0,1).forEach(f => {
-        formats.push({ url: f.url, badge: 'MP4', name: (f.qualityLabel || '360p'), desc: 'Qualidade padrão disponível', direct: true });
+        formats.push({ url: f.url, badge: 'MP4', name: f.qualityLabel || '360p', desc: 'Qualidade disponível', direct: true });
       });
     }
 
     if (bestAudio) {
-      formats.push({ url: bestAudio.url, badge:'M4A', name:'Apenas Áudio', desc:'Sem vídeo', audio:true, direct:true });
+      formats.push({ url: bestAudio.url, badge:'M4A', name:'Somente áudio', desc:'Sem vídeo', audio:true, direct:true });
     }
   }
 
-  if (!formats.length) { showError('Nenhum formato disponível. Tente outra qualidade.'); return; }
-
-  // ... (o resto do código de renderização mantém-se igual)
+  // Renderização dos itens na lista
   formats.forEach(f => {
     const el = document.createElement('a');
     el.className = 'dl-item';
     el.href = f.url;
-    el.rel = 'noopener noreferrer';
+    
     if (f.direct) {
-      el.target = '_blank';
-      el.download = '';
+      el.target = '_blank'; // Vídeos diretos abrem em nova aba
     } else {
-      el.target = '_self';
+      el.target = '_self'; // Merges processam na mesma aba para disparar o download
     }
+
     el.innerHTML = `
       <div class="dl-left">
         <div class="dl-badge${f.audio?' audio':''}">${f.badge}</div>
