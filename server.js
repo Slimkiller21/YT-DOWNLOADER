@@ -15,11 +15,12 @@ const RAPIDAPI_HOST = 'ytstream-download-youtube-videos.p.rapidapi.com';
 app.get('/test-ffmpeg', (req, res) => {
   const { exec } = require('child_process');
 
-  exec('which ffmpeg && ffmpeg -version', (err, stdout, stderr) => {
+  exec('export PATH=$PATH:/usr/bin:/bin:/nix/store && which ffmpeg && ffmpeg -version', 
+  (err, stdout, stderr) => {
     if (err) {
       return res.status(500).send({
         error: 'FFmpeg not working',
-        details: stderr
+        details: stderr || err.message
       });
     }
     res.send(stdout);
