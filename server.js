@@ -19,6 +19,7 @@ if (!RAPIDAPI_KEY) {
 }
 
 // Security headers
+// O NOVO CÓDIGO CORRIGIDO
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -28,6 +29,7 @@ app.use(helmet({
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       imgSrc: ["'self'", "data:", "https://img.youtube.com"],
       connectSrc: ["'self'"],
+      'script-src-attr': ["'unsafe-inline'"] // <-- Esta linha resolve o bloqueio
     }
   }
 }));
