@@ -12,23 +12,7 @@ const PORT = process.env.PORT || 3000;
 const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
 const RAPIDAPI_HOST = 'ytstream-download-youtube-videos.p.rapidapi.com';
 
-app.get('/test-ffmpeg', (req, res) => {
-  const { exec } = require('child_process');
-
-  exec('ls /nix/store | grep ffmpeg', (err, stdout, stderr) => {
-    if (err) {
-      return res.status(500).send({
-        error: 'Cannot find ffmpeg in nix store',
-        details: stderr || err.message
-      });
-    }
-
-    res.send({
-      message: 'Search result in /nix/store',
-      result: stdout
-    });
-  });
-});
+exec('which ffmpeg && ffmpeg -version', ...)
 
 if (!RAPIDAPI_KEY) {
   console.error('ERRO: variável de ambiente RAPIDAPI_KEY não definida.');
